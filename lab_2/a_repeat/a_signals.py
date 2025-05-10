@@ -29,7 +29,7 @@ class Window(QtWidgets.QWidget):
         self.pushButtonMirror = QtWidgets.QPushButton('Mirror')
         self.pushButtonClear = QtWidgets.QPushButton('Clear')
 
-        l_lineEpyside6-dit = QtWidgets.QHBoxLayout()
+        l_lineEdit = QtWidgets.QHBoxLayout()
         l_lineEdit.addWidget(self.lineEditInput)
         l_lineEdit.addWidget(self.lineEditMirror)
 
