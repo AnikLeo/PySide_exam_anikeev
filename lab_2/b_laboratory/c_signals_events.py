@@ -19,27 +19,39 @@
     * При перемещении окна выводить его старую и новую позицию
     * При изменении размера окна выводить его новый размер
 """
+import sys
+from PySide6 import QtWidgets, QtCore, QtGui
+from PySide6.QtUiTools import QUiLoader
 
 
-from PySide6.QtWidgets import QApplication, QWidget, QPlainTextEdit, QVBoxLayout, QtWidgets
-from PySide6.QtUiTools import loadUi
-from PySide6.QtCore import Qt, QDateTime
-from PySide6.QtGui import QTextCursor
+class WindowStateMonitor(QtWidgets.QWidget):
+    def __init__(self):
+        super().__init__()
 
 
-
-class Window(QtWidgets.QWidget):
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
+        self.ui = self.load_ui("ui/c_signals_events_form.ui")
 
 
-        loadUi('ui/c_signals_events_form.ui', self)
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.addWidget(self.ui)
 
 
-        self.plainTextEdit = QPlainTextEdit(self)
+        self.plainTextEdit = QtWidgets.QPlainTextEdit()
         self.plainTextEdit.setReadOnly(True)
-        self.verticalLayout_2.addWidget(self.plainTextEdit)
+
+
+        vertical_layout = self.ui.findChild(QtWidgets.QVBoxLayout, "verticalLayout_2")
+        if vertical_layout:
+            vertical_layout.addWidget(self.plainTextEdit)
+
+
+        self.dial = self.ui.findChild(QtWidgets.QDial, "dial")
+        self.horizontal_slider = self.ui.findChild(QtWidgets.QSlider, "horizontalSlider")
+
+        if self.dial:
+            self.dial.setRange(0, 100)
+        if self.horizontal_slider:
+            self.horizontal_slider.setRange(0, 100)
 
 
         self.setup_connections()
@@ -47,47 +59,61 @@ class Window(QtWidgets.QWidget):
 
         self.update_screen_info()
 
+    def load_ui(self, ui_file):
+        loader = QUiLoader()
+        file = QtCore.QFile(ui_file)
+        if not file.open(QtCore.QFile.ReadOnly):
+            print(f"Cannot open UI file: {file.errorString()}")
+            sys.exit(-1)
+
+        ui = loader.load(file)
+        file.close()
+        return ui
+
     def setup_connections(self):
+        if self.dial:
+            self.dial.valueChanged.connect(self.move_window_by_dial)
+        if self.horizontal_slider:
+            self.horizontal_slider.valueChanged.connect(self.resize_window_by_slider)
 
-        self.dial.valueChanged.connect(self.move_window_by_dial)
-        self.horizontalSlider.valueChanged.connect(self.resize_window_by_slider)
 
-        # Отслеживание событий окна
-        self.windowStateChanged.connect(self.on_window_state_changed)
-        if self.windowHandle():
-            self.windowHandle().screenChanged.connect(self.on_screen_changed)
+        self.installEventFilter(self)
+
+    def eventFilter(self, obj, event):
+        if event.type() == QtCore.QEvent.WindowStateChange:
+            self.on_window_state_changed(self.windowState())
+        return super().eventFilter(obj, event)
 
     def move_window_by_dial(self, value):
         old_pos = self.pos()
-        new_x = value * 2
-        new_y = value * 2
-        self.move(new_x, new_y)
-        self.log_position_change(old_pos, self.pos())
+        new_pos = QtCore.QPoint(value * 3, value * 2)
+        self.move(new_pos)
+        self.log_position_change(old_pos, new_pos)
 
     def resize_window_by_slider(self, value):
-        new_width = 200 + value * 2
-        new_height = 150 + value
+        new_width = 300 + value * 2
+        new_height = 200 + value
         self.resize(new_width, new_height)
         self.log_console(f"Window resized to: {new_width}x{new_height}")
 
     def update_screen_info(self):
-        screen = self.windowHandle().screen() if self.windowHandle() else QApplication.primaryScreen()
-        screens = QApplication.screens()
+        screen = self.screen() if self.screen() else QtWidgets.QApplication.primaryScreen()
+        screens = QtWidgets.QApplication.screens()
 
         info = f"""
-    === Screen Information ({QDateTime.currentDateTime().toString('hh:mm:ss')}) ===
-    Number of screens: {len(screens)}
-    Current primary screen: {QApplication.primaryScreen().name()}
-    Screen resolution: {screen.size().width()}x{screen.size().height()}
-    Current screen: {screen.name() if self.windowHandle() else 'primary'}
-    Window size: {self.width()}x{self.height()}
-    Minimum size: {self.minimumWidth()}x{self.minimumHeight()}
-    Window position: {self.x()}, {self.y()}
-    Window center: {self.geometry().center().x()}, {self.geometry().center().y()}
-    Window state: {self.get_window_state()}
-    """
+=== Screen Information ({QtCore.QDateTime.currentDateTime().toString('hh:mm:ss')}) ===
+Number of screens: {len(screens)}
+Current primary screen: {QtWidgets.QApplication.primaryScreen().name()}
+Screen resolution: {screen.size().width()}x{screen.size().height()}
+Current screen: {screen.name()}
+Window size: {self.width()}x{self.height()}
+Minimum size: {self.minimumWidth()}x{self.minimumHeight()}
+Window position: {self.x()}, {self.y()}
+Window center: {self.geometry().center().x()}, {self.geometry().center().y()}
+Window state: {self.get_window_state()}
+"""
         self.plainTextEdit.appendPlainText(info)
-        self.plainTextEdit.moveCursor(QTextCursor.End)
+        self.plainTextEdit.moveCursor(QtGui.QTextCursor.End)
 
     def get_window_state(self):
         if self.isMinimized():
@@ -100,11 +126,10 @@ class Window(QtWidgets.QWidget):
             return "Active"
         elif self.isVisible():
             return "Visible"
-        else:
-            return "Hidden"
+        return "Hidden"
 
     def log_position_change(self, old_pos, new_pos):
-        message = f"[{QDateTime.currentDateTime().toString('hh:mm:ss')}] Window moved from ({old_pos.x()}, {old_pos.y()}) to ({new_pos.x()}, {new_pos.y()})"
+        message = f"[{QtCore.QDateTime.currentDateTime().toString('hh:mm:ss')}] Window moved from ({old_pos.x()}, {old_pos.y()}) to ({new_pos.x()}, {new_pos.y()})"
         self.log_console(message)
         self.update_screen_info()
 
@@ -112,22 +137,20 @@ class Window(QtWidgets.QWidget):
         print(message)
 
     def on_window_state_changed(self, state):
-        state_str = "!"
-        if state & Qt.WindowMinimized:
+        state_str = "Normal"
+        if state & QtCore.Qt.WindowMinimized:
             state_str = "Minimized"
-        elif state & Qt.WindowMaximized:
+        elif state & QtCore.Qt.WindowMaximized:
             state_str = "Maximized"
-        elif state & Qt.WindowFullScreen:
+        elif state & QtCore.Qt.WindowFullScreen:
             state_str = "FullScreen"
-        else:
-            state_str = "Normal"
 
-        message = f"[{QDateTime.currentDateTime().toString('hh:mm:ss')}] Window state changed: {state_str}"
+        message = f"[{QtCore.QDateTime.currentDateTime().toString('hh:mm:ss')}] Window state changed: {state_str}"
         self.log_console(message)
         self.update_screen_info()
 
     def on_screen_changed(self, screen):
-        message = f"[{QDateTime.currentDateTime().toString('hh:mm:ss')}] Window moved to screen: {screen.name()}"
+        message = f"[{QtCore.QDateTime.currentDateTime().toString('hh:mm:ss')}] Window moved to screen: {screen.name()}"
         self.log_console(message)
         self.update_screen_info()
 
@@ -138,19 +161,20 @@ class Window(QtWidgets.QWidget):
     def resizeEvent(self, event):
         super().resizeEvent(event)
         self.log_console(
-            f"[{QDateTime.currentDateTime().toString('hh:mm:ss')}] Window resized to: {self.width()}x{self.height()}")
+            f"[{QtCore.QDateTime.currentDateTime().toString('hh:mm:ss')}] Window resized to: {self.width()}x{self.height()}")
         self.update_screen_info()
 
     def changeEvent(self, event):
         super().changeEvent(event)
-        if event.type() == event.WindowStateChange:
+        if event.type() == QtCore.QEvent.WindowStateChange:
+            self.on_window_state_changed(self.windowState())
             self.update_screen_info()
 
 
 if __name__ == "__main__":
-    app = QtWidgets.QApplication()
+    app = QtWidgets.QApplication(sys.argv)
 
-    window = Window()
+    window = WindowStateMonitor()
     window.show()
 
-    app.exec()
+    sys.exit(app.exec())
