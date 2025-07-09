@@ -21,11 +21,10 @@
 """
 
 
-from PySide6 import QtWidgets
-from PyQt5.QtWidgets import QApplication, QWidget, QPlainTextEdit, QVBoxLayout
-from PyQt5.uic import loadUi
-from PyQt5.QtCore import Qt, QDateTime
-from PyQt5.QtGui import QTextCursor
+from PySide6.QtWidgets import QApplication, QWidget, QPlainTextEdit, QVBoxLayout, QtWidgets
+from PySide6.QtUiTools import loadUi
+from PySide6.QtCore import Qt, QDateTime
+from PySide6.QtGui import QTextCursor
 
 
 
@@ -34,28 +33,29 @@ class Window(QtWidgets.QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
 
-        # Загрузка UI формы
+
         loadUi('ui/c_signals_events_form.ui', self)
 
-        # Добавляем plainTextEdit для вывода информации
+
         self.plainTextEdit = QPlainTextEdit(self)
         self.plainTextEdit.setReadOnly(True)
         self.verticalLayout_2.addWidget(self.plainTextEdit)
 
-        # Настройка соединений сигналов и слотов
+
         self.setup_connections()
 
-        # Вывод начальной информации о состоянии
+
         self.update_screen_info()
 
     def setup_connections(self):
-        # Отслеживание изменений геометрии окна
+
         self.dial.valueChanged.connect(self.move_window_by_dial)
         self.horizontalSlider.valueChanged.connect(self.resize_window_by_slider)
 
         # Отслеживание событий окна
         self.windowStateChanged.connect(self.on_window_state_changed)
-        self.windowHandle().screenChanged.connect(self.on_screen_changed)
+        if self.windowHandle():
+            self.windowHandle().screenChanged.connect(self.on_screen_changed)
 
     def move_window_by_dial(self, value):
         old_pos = self.pos()
@@ -71,21 +71,21 @@ class Window(QtWidgets.QWidget):
         self.log_console(f"Window resized to: {new_width}x{new_height}")
 
     def update_screen_info(self):
-        screen = self.windowHandle().screen()
+        screen = self.windowHandle().screen() if self.windowHandle() else QApplication.primaryScreen()
         screens = QApplication.screens()
 
         info = f"""
-=== Screen Information ({QDateTime.currentDateTime().toString('hh:mm:ss')}) ===
-Number of screens: {len(screens)}
-Current primary screen: {QApplication.primaryScreen().name()}
-Screen resolution: {screen.size().width()}x{screen.size().height()}
-Current screen: {screen.name()}
-Window size: {self.width()}x{self.height()}
-Minimum size: {self.minimumWidth()}x{self.minimumHeight()}
-Window position: {self.x()}, {self.y()}
-Window center: {self.geometry().center().x()}, {self.geometry().center().y()}
-Window state: {self.get_window_state()}
-"""
+    === Screen Information ({QDateTime.currentDateTime().toString('hh:mm:ss')}) ===
+    Number of screens: {len(screens)}
+    Current primary screen: {QApplication.primaryScreen().name()}
+    Screen resolution: {screen.size().width()}x{screen.size().height()}
+    Current screen: {screen.name() if self.windowHandle() else 'primary'}
+    Window size: {self.width()}x{self.height()}
+    Minimum size: {self.minimumWidth()}x{self.minimumHeight()}
+    Window position: {self.x()}, {self.y()}
+    Window center: {self.geometry().center().x()}, {self.geometry().center().y()}
+    Window state: {self.get_window_state()}
+    """
         self.plainTextEdit.appendPlainText(info)
         self.plainTextEdit.moveCursor(QTextCursor.End)
 
@@ -112,7 +112,7 @@ Window state: {self.get_window_state()}
         print(message)
 
     def on_window_state_changed(self, state):
-        state_str = ""
+        state_str = "!"
         if state & Qt.WindowMinimized:
             state_str = "Minimized"
         elif state & Qt.WindowMaximized:
@@ -145,15 +145,6 @@ Window state: {self.get_window_state()}
         super().changeEvent(event)
         if event.type() == event.WindowStateChange:
             self.update_screen_info()
-
-
-if __name__ == '__main__':
-    app = QApplication(sys.argv)
-    monitor = WindowStateMonitor()
-    monitor.show()
-    sys.exit(app.exec_())
-
-
 
 
 if __name__ == "__main__":
