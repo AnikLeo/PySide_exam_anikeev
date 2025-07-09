@@ -23,10 +23,14 @@ class SystemInfo(QtCore.QThread):
             cpu_value = psutil.cpu_percent()  # TODO с помощью вызова функции cpu_percent() в пакете psutil получите загрузку CPU
             ram_value = psutil.virtual_memory().percent  # TODO с помощью вызова функции virtual_memory().percent в пакете psutil получите загрузку RAM
             self.systemInfoReceived.emit([cpu_value, ram_value])  # TODO с помощью метода .emit передайте в виде списка данные о загрузке CPU и RAM
-            time  # TODO с помощью функции .sleep() приостановите выполнение цикла на время self.delay
+            time.sleep(self.delay)  # TODO с помощью функции .sleep() приостановите выполнение цикла на время self.delay
 
 
 class WeatherHandler(QtCore.QThread):
+    weatherDataReceived = QtCore.Signal(dict)
+    statusChanged = QtCore.Signal(bool)
+    errorOccurred = QtCore.Signal(str)
+
     # TODO Пропишите сигналы, которые считаете нужными
 
     def __init__(self, lat, lon, parent=None):
@@ -47,10 +51,20 @@ class WeatherHandler(QtCore.QThread):
         self.__delay = delay
 
     def run(self) -> None:
+        while self.__status:
+            try:
+                response = requests.get(self.__api_url)
+                if response.status_code == 200:
+                    data = response.json()
+                    self.weatherDataReceived.emit(data)
+                else:
+                    self.errorOccurred.emit(f"Ошибка HTTP: {response.status_code}")
+            except requests.exceptions.RequestException as e:
+                self.errorOccurred.emit(f"Ошибка запроса: {str(e)}")
+
+            time.sleep(self.__delay)
         # TODO настройте метод для корректной работы
 
-        while self.__status:
-            # TODO Примерный код ниже
             """
             response = requests.get(self.__api_url)
             data = response.json()
